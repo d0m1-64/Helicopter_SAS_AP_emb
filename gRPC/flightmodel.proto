@@ -1,0 +1,95 @@
+
+/*
+Proto File for FlightModel gRPC service
+Used for Communication between SimHost and the FlightModel Calculation
+
+Defined rpc Methods:
+- RequestSetupInformation: SimHost can request Data like contact points of flight model or eyepoint relative to ref point
+- InitializeSimulation: Used to start Simulation, since the Flight Model needs initial data like control inputs, height
+                         below helicopter contact points, etc.
+- ExecuteSingleTimeStep: Triggered eacht imesteps, calculates helicopter behaviour based on pilot inputs
+
+Relies on Primary Controls Proto, since structure for control inputs is reused.
+
+ */
+
+syntax = "proto3";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+
+package flightmodel;
+
+service FlightModel {
+  rpc InitializeSimulation (FlightModelInitializationParameters) returns (flightmodel.FlightModelOutput);
+  rpc ExecuteSingleTimeStep (flightmodel.FlightModelInput) returns (flightmodel.FlightModelOutput);
+}
+
+
+message FlightModelSetupInfo {
+  string flightModelVersion = 1;
+}
+
+message FlightModelInput {
+  optional PrimaryControlOutput primaryControlInput = 1;
+}
+
+message PrimaryControlOutput {
+  google.protobuf.Timestamp timestamp = 1;
+  double collective = 2;
+  double cyclic_lat = 3;
+  double cyclic_lon = 4;
+  double pedals = 5;
+}
+
+message FlightModelOutput {
+  OwnshipPosition ownshipPosition = 1;
+  bool licensed = 10;
+}
+
+message FlightModelInitializationParameters {
+  OwnshipPosition initialOwnshipPosition = 1;
+  double initialFlightspeed = 2;
+}
+message WSG84Position {
+  double latitude = 1;
+  double longitude = 2;
+  double altitude = 3;
+}
+
+message Attitudes {
+  double roll = 1;
+  double pitch = 2;
+  double yaw = 3;
+}
+message Velocities {
+  double u = 1;
+  double v = 2;
+  double w = 3;
+}
+
+message OwnshipPosition {
+  google.protobuf.Timestamp timestamp = 1;
+  WSG84Position position = 2;
+  Attitudes attitudes = 3;
+  Attitudes eulerRates = 4;
+  Velocities velocities = 5;
+  Attitudes angularRates = 6;
+  Velocities accelerations = 7;
+  Attitudes angularAccelerations = 8;
+  Velocities velocitiesNED = 9;
+  Velocities velocitiesAir = 10;
+  Attitudes angularRatesAir = 11;
+  double angleOfAttack = 12;
+  double AngleOfSideslip = 13;
+  double FlightPathAngle = 14;
+  double GroundSpeed = 15;
+  double Track = 16;
+  double TrueAirspeed = 17;
+  double indicatedAirspeed = 18;
+  WSG84Position LLARightFwdSkid = 19;
+  WSG84Position LLALeftFwdSkid = 20;
+  WSG84Position LLALeftAftSkid = 21;
+  WSG84Position LLARightAftSkid = 22;
+  WSG84Position LLAFenestronSkid = 23;
+}
