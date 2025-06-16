@@ -5,4 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_executable(Helicopter_SAS_AP_emb SIM_Main.cpp
         Saving_Routine.cpp
-        Datatypes.h)
+        Datatypes.h
+        FlightModelClient.cpp
+        FlightModelClient.h
+)

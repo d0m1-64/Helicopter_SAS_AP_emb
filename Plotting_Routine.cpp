@@ -10,6 +10,7 @@
 
 // Include Files
 #include "Plotting_Routine.h"
+#include "Datatypes.h"
 
 // Function Definitions
 //
