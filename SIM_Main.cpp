@@ -1,13 +1,17 @@
 #include <iostream>
-#include <thread>
 #include <chrono>
 #include <fstream>
-#include "FlightClient.h"
+#include <vector>
+
 #include <nlohmann/json.hpp>
 #include <grpcpp/grpcpp.h>
 #include "flightmodel.grpc.pb.h"
-#include "Full_Controller.h"
-#include "Datatypes.h"
+
+#include "Full_Controller/Full_Controller.h"
+#include "FlightModelClient.h"
+#include "Plotting_Routine.h"
+#include "Saving_Routine.cpp"
+#include "Testing_Procedures.cpp"
 
 using json = nlohmann::json;
 
@@ -17,6 +21,7 @@ using json = nlohmann::json;
  */
 int main() {
 
+
     // 0. Read Sim_Config.json and Init h5 Dataset
     std::ifstream file("Sim_Config.json");
     json sim_config;
@@ -25,10 +30,12 @@ int main() {
     std::string hel_sim_address = sim_config["simulation"]["Hel_Sim_Adress"];
     double sim_time = sim_config["simulation"]["simTime"];
     double dt = sim_config["simulation"]["dt"];
-    NofSteps = sim_time / dt;
+    int NofSteps = sim_time / dt;
 
     init_dataset();
     save_config();
+
+
 
 
     // 1. gRPC client
@@ -37,16 +44,16 @@ int main() {
 
     // 2. Controller instance
     Full_Controller controller;
-    controller.initialize();
 
 
     // 3. Form inputs
-    auto [pilot_controls, autopilot_controls] = testing_procedures();
-    save_inputs(autopilot_controls, pilot_controls);
+    auto [Pilot_Cntrls, AP_Cntrls] = testing_procedures();
+    save_inputs(AP_Cntrls, Pilot_Cntrls);
 
 
     // 4. Initial States
-    // ToDo: Define initial states
+    // ToDo: Define initial states and save the first (initial) step - give references
+    save_timestep();
 
 
     // 5. Run the Simulation Loop
@@ -77,21 +84,21 @@ int main() {
 
 
         // 5.5. Save Outputs
-        // ToDo
+        // ToDo give references to local helicopter states
         save_timestep();
 
 
         // 5.6. Log Simulation Progress
-        std::cout << "Step " << step << " of " << NofSteps << " complete\n";
+        printf("Step %d of %d complete\n", step, NofSteps);
     }
 
 
     // 6. Terminate controller and gRPC connection
-    controller.terminate();
+    // ToDo
 
 
     // 7. Plot results
-    //Plotting_Routine();
+    Plotting_Routine();
 
 
     return 0;
