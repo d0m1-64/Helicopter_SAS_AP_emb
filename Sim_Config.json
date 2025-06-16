@@ -4,7 +4,10 @@
     "_comment_simTime": "Simulation duration in seconds",
 
     "dt": 0.016666666666666666,
-    "_comment_dt": "Time-step size in seconds (1/60)"
+    "_comment_dt": "Time-step size in seconds (1/60)",
+
+    "Hel_Sim_Adress" : "10.162.232.101:50060",
+    "_comment_Hel_Sim_Adress" : "IP and Port of the HQ Helicopter Simulator / Model available via gRPC"
   },
 
   "input_configuration": {
