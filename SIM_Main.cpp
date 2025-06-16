@@ -1,80 +1,54 @@
 #include <iostream>
-#include <memory>
 #include <thread>
 #include <chrono>
-#include <ctime>
-
+#include <fstream>
+#include "FlightClient.h"
+#include <nlohmann/json.hpp>
 #include <grpcpp/grpcpp.h>
 #include "flightmodel.grpc.pb.h"
 #include "Full_Controller.h"
+#include "Datatypes.h"
 
-using grpc::Channel;
-using grpc::ClientContext;
-using grpc::Status;
-using flightmodel::FlightModel;
-using flightmodel::FlightModelInput;
-using flightmodel::FlightModelOutput;
-using flightmodel::PrimaryControlOutput;
+using json = nlohmann::json;
 
-class FlightModelClient {
-public:
-    FlightModelClient(std::shared_ptr<Channel> channel)
-        : stub_(FlightModel::NewStub(channel)) {}
 
-    FlightModelOutput StepSimulation(const PrimaryControlOutput& controls) {
-        FlightModelInput request;
-        *request.mutable_primarycontrolinput() = controls;
-
-        FlightModelOutput reply;
-        ClientContext context;
-
-        Status status = stub_->ExecuteSingleTimeStep(&context, request, &reply);
-
-        if (!status.ok()) {
-            std::cerr << "gRPC call failed: " << status.error_message() << std::endl;
-        }
-
-        return reply;
-    }
-
-private:
-    std::unique_ptr<FlightModel::Stub> stub_;
-};
-
-PrimaryControlOutput CreateControlMessage(double coll, double lat, double lon, double ped) {
-    PrimaryControlOutput control_msg;
-    auto* now = new google::protobuf::Timestamp();
-    auto now_time = std::chrono::system_clock::now();
-    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now_time.time_since_epoch()).count();
-    auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(now_time.time_since_epoch()).count() % 1000000000;
-
-    now->set_seconds(seconds);
-    now->set_nanos(nanos);
-    control_msg.set_allocated_timestamp(now);
-
-    control_msg.set_collective(coll);
-    control_msg.set_cyclic_lat(lat);
-    control_msg.set_cyclic_lon(lon);
-    control_msg.set_pedals(ped);
-
-    return control_msg;
-}
-
+/*
+ * Main Simulation Function
+ */
 int main() {
+    // 0. Read Sim_Config.json and Init h5 Dataset
+    std::ifstream file("Sim_Config.json");
+    json sim_config;
+    file >> sim_config;
+
+    std::string hel_sim_address = sim_config["simulation"]["Hel_Sim_Adress"];
+    double sim_time = sim_config["simulation"]["simTime"];
+    double dt = sim_config["simulation"]["dt"];
+    NofSteps = sim_time / dt;
+
+    init_dataset();
+    save_config();
+
     // 1. gRPC client
-    FlightModelClient client(grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials()));
+    FlightModelClient client(grpc::CreateChannel(hel_sim_address, grpc::InsecureChannelCredentials()));
 
     // 2. Controller instance
     Full_Controller controller;
     controller.initialize();
 
     // 3. Form inputs
+    auto [pilot_controls, autopilot_controls] = testing_procedures();
+    save_inputs(autopilot_controls, pilot_controls);
 
+    // 4. Initial States
+    // ToDo: Define initial states
 
+    // 5. Run the Simulation Loop
+    for (int step = 0; step < NofSteps; step++) {
 
-    for (int step = 0; step < 1000; ++step) {
-        // 4. Step the controller
-        controller.step(&delta_long, &delta_lat, &delta_coll, &delta_ped,
+        // 5.1. Step the controller
+        // ToDo: fix references
+        controller.step(pilot_controls.delta_long, &delta_lat, &delta_coll, &delta_ped,
                         &ref_x, &ref_y, &ref_vs, &ref_psi,
                         &wind_x, &wind_y, &wind_z,
                         &ap_enabled, &sas_enabled,
@@ -82,19 +56,29 @@ int main() {
                         &v, &p, &phi, &r,
                         &output_delt, &output_de_g, &output_de_c, &output_de_e);
 
-        // 5. Create gRPC message from controller outputs
+        // 5.2. Create gRPC message from controller outputs
         auto control_msg = CreateControlMessage(output_de_c, output_de_g, output_delt, output_de_e);
 
-        // 6. Call gRPC
+        // 5.3. Call gRPC
         FlightModelOutput result = client.StepSimulation(control_msg);
 
-        // 7. Optionally process result for next timestep inputs
-        // Example: update 'u', 'v', etc. from `result.ownshippage.velocities().u()` etc.
+        // 5.4. Update local Helicopter State
+        // ToDo
 
-        std::cout << "Step " << step << " complete\n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(16)); // ~60Hz
+        // 5.5. Save Outputs
+        // ToDo
+        save_timestep();
+
+        // 5.6. Log Simulation Progress
+        std::cout << "Step " << step << " of " << NofSteps << " complete\n";
     }
 
+    // 6. Terminate controller and gRPC connection
     controller.terminate();
+
+    // 7. Plot results
+    //Plotting_Routine();
+
+
     return 0;
 }
