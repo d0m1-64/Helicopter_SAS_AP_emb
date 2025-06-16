@@ -40,4 +40,18 @@ struct Accelerations {
     double a_z;
 };
 
+struct AutoPilot_Controls {
+    double GS_x;
+    double GS_y;
+    double VS;
+    double Heading;
+};
+
+struct Pilot_Controls {
+    double delta_long;
+    double delta_lat;
+    double delta_coll;
+    double delta_ped;
+};
+
 #endif //DATATYPES_H
