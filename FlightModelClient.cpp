@@ -9,7 +9,7 @@ FlightModelClient::FlightModelClient(std::shared_ptr<Channel> channel)
     : stub_(FlightModel::NewStub(channel)) {}
 
 /*
- * Call Simulation Server
+ * Step Simulation
  */
 FlightModelOutput FlightModelClient::StepSimulation(const PrimaryControlOutput& controls) {
     FlightModelInput request;
