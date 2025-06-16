@@ -1,0 +1,40 @@
+{
+  "simulation": {
+    "simTime": 10,
+    "_comment_simTime": "Simulation duration in seconds",
+
+    "dt": 0.016666666666666666,
+    "_comment_dt": "Time-step size in seconds (1/60)"
+  },
+
+  "input_configuration": {
+    "input_idx": 1,
+    "_comment_input_idx": "Which input channel the signal is applied to. Depends on AutoPilot_Enabled. Possible mappings:",
+    "_comment1_input_idx": "Pilot_Controls active:   1:delta_long | 2:delta_lat | 3:delta_coll | 4:delta_ped  ",
+    "_comment2_input_idx": "Auto_Pilot_active:       1:GS_x       | 2:GS_y      | 3:VS         | 4:Heading    ",
+
+    "test_Nr": 3,
+    "_comment_test_Nr": "Specify which test should be executed. The input is formed accordingly.",
+    "_comment2_test_Nr": "0: No Input | 1: Step Input | 2: Rectangle Input | 3: Doublet | 4: 3211 | 5: 2311 | 6: Sine-Sweep",
+
+    "unit_amplitude": 10,
+    "_comment_unit_amplitude": "Amplitude of the input signal in percent [%]",
+
+    "unit_duration": 2,
+    "_comment_unit_duration": "Duration for which the input signal remains active in seconds [s]",
+
+    "start_time": 1,
+    "_comment_start_time": "Start time of the input signal in seconds [s]"
+  },
+
+  "controller_parameters": {
+    "AutoPilot_Enabled": 0,
+    "_comment_Auto_Pilot_Enabled": "Enable autopilot? 1 = enabled, 0 = disabled",
+
+    "SAS_Enabled": 1,
+    "_comment_SAS_Enabled": "Enable SAS? 1 = enabled, 0 = disabled",
+
+    "Abs_values_flag": 1,
+    "_comment_Abs_values_flag": "Plot type: 1 = absolute values, 0 = deviation from trim states"
+  }
+}
