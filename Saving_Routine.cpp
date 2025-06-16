@@ -41,7 +41,8 @@ void init_dataset() {
         "/Responses",
         "/Responses/WSG84Position",
         "/Responses/Attitudes",
-        "/Responses/Velocities"
+        "/Responses/Velocities_B",
+        "/Responses/AngularRates"
     };
 
     for (const auto& path : paths) {
