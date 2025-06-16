@@ -2,96 +2,122 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <ctime>
+#include <fstream>
+#include <nlohmann/json.hpp>
+#include "Datatypes.h"
 
 using namespace H5;
+using json = nlohmann::json;
 
-const std::string FILE_NAME = "/mnt/data/Dataset_20250615_1824.h5";
+static std::string h5file_name;
+std::string config_file_name = "Sim_Config.json";
 
-// Structs
-struct SimulationParameters {
-    double dt;
-    double simTime;
-    double NofSteps[2];  // 1x2 array
-    std::vector<double> t;
-};
 
-struct ControllerParameters {
-    double SAS_Enabled;
-    double AutoPilot_Enabled;
-    double Abs_values_flag;
-    double beauford;
-};
 
-struct AutoPilotInputs {
-    std::vector<double> GS_x, GS_y, VS, psi;
-};
-
-struct PilotControls {
-    std::vector<double> delta_coll, delta_lat, delta_long, delta_ped;
-};
-
-// Init and return dataset group
-H5::Group init_dataset(H5::H5File& file, const std::string& path) {
-    std::string token;
-    H5::Group group = file.openGroup("/");
-    size_t pos = 0, next;
-    while ((next = path.find('/', pos)) != std::string::npos) {
-        token = path.substr(pos, next - pos);
-        pos = next + 1;
-        if (token.empty()) continue;
-        try { group = group.openGroup(token); }
-        catch (...) { group = group.createGroup(token); }
-    }
-    token = path.substr(pos);
-    try { return group.openGroup(token); }
-    catch (...) { return group.createGroup(token); }
+std::string generate_filename() {
+    time_t now = time(nullptr);
+    tm* ltm = localtime(&now);
+    char buf[64];
+    strftime(buf, sizeof(buf), "/mnt/data/Dataset_%Y%m%d_%H%M.h5", ltm);
+    return std::string(buf);
 }
 
-// Save simulation and controller attributes
-void save_config(const SimulationParameters& sim, const ControllerParameters& ctrl) {
-    H5File file(FILE_NAME, H5F_ACC_RDWR);
+// Init and return dataset group
+void init_dataset() {
 
-    // Simulation
+    file_name = generate_filename();
+    H5File file(h5file_name, H5F_ACC_TRUNC);
+
+    const std::vector<std::string> paths = {
+        "/Simulation_Parameters",
+        "/Controller_Parameters",
+        "/Inputs",
+        "/Inputs/Auto_Pilot",
+        "/Inputs/Pilot_Controls",
+        "/Responses",
+        "/Responses/WSG84Position",
+        "/Responses/Attitudes",
+        "/Responses/Velocities"
+    };
+
+    for (const auto& path : paths) {
+        try {
+            init_dataset(file, path); // Reuse existing function to create/make sure the group exists
+        } catch (const H5::Exception& e) {
+            std::cerr << "Failed to initialize group: " << path << "\n";
+        }
+    }
+}
+
+// Load and save simulation and controller parameters
+void save_config() {
+    std::ifstream config_file(config_file_name);
+    if (!config_file.is_open()) {
+        std::cerr << "Failed to open Sim_Config.json\n";
+        return;
+    }
+
+    json config;
+    config_file >> config;
+
+    auto sim = config["simulation"];
+    auto ctrl = config["controller_parameters"];
+
+    H5File file(h5file_name, H5F_ACC_RDWR);
+
     Group sim_group = init_dataset(file, "/Simulation_Parameters");
-    sim_group.createAttribute("dt", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &sim.dt);
-    sim_group.createAttribute("simTime", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &sim.simTime);
-    hsize_t dims2[1] = {2};
-    DataSpace ds2(1, dims2);
-    sim_group.createAttribute("NofSteps", PredType::NATIVE_DOUBLE, ds2).write(PredType::NATIVE_DOUBLE, sim.NofSteps);
+    sim_group.createAttribute("dt", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &sim["dt"]);
+    sim_group.createAttribute("simTime", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &sim["simTime"]);
 
-    // Dataset 't'
-    hsize_t t_dims[2] = {1, sim.t.size()};
-    DataSpace t_space(2, t_dims);
-    sim_group.createDataSet("t", PredType::NATIVE_DOUBLE, t_space).write(sim.t.data(), PredType::NATIVE_DOUBLE);
-
-    // Controller
     Group ctrl_group = init_dataset(file, "/Controller_Parameters");
-    ctrl_group.createAttribute("SAS_Enabled", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl.SAS_Enabled);
-    ctrl_group.createAttribute("AutoPilot_Enabled", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl.AutoPilot_Enabled);
-    ctrl_group.createAttribute("Abs_values_flag", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl.Abs_values_flag);
-    ctrl_group.createAttribute("beauford", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl.beauford);
+    ctrl_group.createAttribute("SAS_Enabled", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl["SAS_Enabled"]);
+    ctrl_group.createAttribute("AutoPilot_Enabled", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl["AutoPilot_Enabled"]);
+    ctrl_group.createAttribute("Abs_values_flag", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl["Abs_values_flag"]);
 }
 
 // Save AutoPilot and PilotControl inputs
-void save_inputs(const AutoPilotInputs& ap, const PilotControls& pc) {
-    H5File file(FILE_NAME, H5F_ACC_RDWR);
-    hsize_t dims[2] = {601, 1};
+void save_inputs(const std::vector<AutoPilot_Controls>& ap_vec, const std::vector<Pilot_Controls>& pc_vec) {
+    H5File file(h5file_name, H5F_ACC_RDWR);
+    const hsize_t N = ap_vec.size();
+    hsize_t dims[2] = {N, 1};
     DataSpace space(2, dims);
 
-    auto ap_group = init_dataset(file, "/Inputs/Auto_Pilot");
-    ap_group.createDataSet("GS_x", PredType::NATIVE_DOUBLE, space).write(ap.GS_x.data(), PredType::NATIVE_DOUBLE);
-    ap_group.createDataSet("GS_y", PredType::NATIVE_DOUBLE, space).write(ap.GS_y.data(), PredType::NATIVE_DOUBLE);
-    ap_group.createDataSet("VS",   PredType::NATIVE_DOUBLE, space).write(ap.VS.data(), PredType::NATIVE_DOUBLE);
-    ap_group.createDataSet("psi",  PredType::NATIVE_DOUBLE, space).write(ap.psi.data(), PredType::NATIVE_DOUBLE);
+    // Extract field vectors for AutoPilot_Controls
+    std::vector<double> GS_x(N), GS_y(N), VS(N), Heading(N);
+    for (size_t i = 0; i < N; ++i) {
+        GS_x[i] = ap_vec[i].GS_x;
+        GS_y[i] = ap_vec[i].GS_y;
+        VS[i]   = ap_vec[i].VS;
+        Heading[i] = ap_vec[i].Heading;
+    }
 
+    // Save AutoPilot inputs
+    auto ap_group = init_dataset(file, "/Inputs/Auto_Pilot");
+    ap_group.createDataSet("GS_x",    PredType::NATIVE_DOUBLE, space).write(GS_x.data(), PredType::NATIVE_DOUBLE);
+    ap_group.createDataSet("GS_y",    PredType::NATIVE_DOUBLE, space).write(GS_y.data(), PredType::NATIVE_DOUBLE);
+    ap_group.createDataSet("VS",      PredType::NATIVE_DOUBLE, space).write(VS.data(),   PredType::NATIVE_DOUBLE);
+    ap_group.createDataSet("Heading", PredType::NATIVE_DOUBLE, space).write(Heading.data(), PredType::NATIVE_DOUBLE);
+
+    // Extract field vectors for Pilot_Controls
+    std::vector<double> delta_long(N), delta_lat(N), delta_coll(N), delta_ped(N);
+    for (size_t i = 0; i < N; ++i) {
+        delta_long[i] = pc_vec[i].delta_long;
+        delta_lat[i]  = pc_vec[i].delta_lat;
+        delta_coll[i] = pc_vec[i].delta_coll;
+        delta_ped[i]  = pc_vec[i].delta_ped;
+    }
+
+    // Save Pilot inputs
     auto pc_group = init_dataset(file, "/Inputs/Pilot_Controls");
-    pc_group.createDataSet("delta_coll", PredType::NATIVE_DOUBLE, space).write(pc.delta_coll.data(), PredType::NATIVE_DOUBLE);
-    pc_group.createDataSet("delta_lat",  PredType::NATIVE_DOUBLE, space).write(pc.delta_lat.data(), PredType::NATIVE_DOUBLE);
-    pc_group.createDataSet("delta_long", PredType::NATIVE_DOUBLE, space).write(pc.delta_long.data(), PredType::NATIVE_DOUBLE);
-    pc_group.createDataSet("delta_ped",  PredType::NATIVE_DOUBLE, space).write(pc.delta_ped.data(), PredType::NATIVE_DOUBLE);
+    pc_group.createDataSet("delta_long", PredType::NATIVE_DOUBLE, space).write(delta_long.data(), PredType::NATIVE_DOUBLE);
+    pc_group.createDataSet("delta_lat",  PredType::NATIVE_DOUBLE, space).write(delta_lat.data(),  PredType::NATIVE_DOUBLE);
+    pc_group.createDataSet("delta_coll", PredType::NATIVE_DOUBLE, space).write(delta_coll.data(), PredType::NATIVE_DOUBLE);
+    pc_group.createDataSet("delta_ped",  PredType::NATIVE_DOUBLE, space).write(delta_ped.data(),  PredType::NATIVE_DOUBLE);
 }
 
-// Append helper
+
+// Append a single value to a dataset
 void appendToDataset(H5::Group& group, const std::string& name, double value) {
     H5::DataSet dataset;
     H5::DataSpace space;
@@ -122,23 +148,21 @@ void appendToDataset(H5::Group& group, const std::string& name, double value) {
 }
 
 // Save timestep to '/Responses'
-void save_timestep(double lat, double lon, double alt,
-                   double roll, double pitch, double yaw,
-                   double u, double v, double w) {
-    H5File file(FILE_NAME, H5F_ACC_RDWR);
+void save_timestep(const WSG84Position& pos_data, const Attitudes& att, const Velocities_B& vel) {
+    H5File file(h5file_name, H5F_ACC_RDWR);
     auto pos = init_dataset(file, "/Responses/WSG84Position");
-    auto att = init_dataset(file, "/Responses/Attitudes");
-    auto vel = init_dataset(file, "/Responses/Velocities");
+    auto attitude = init_dataset(file, "/Responses/Attitudes");
+    auto velocity = init_dataset(file, "/Responses/Velocities");
 
-    appendToDataset(pos, "latitude", lat);
-    appendToDataset(pos, "longitude", lon);
-    appendToDataset(pos, "altitude", alt);
+    appendToDataset(pos, "latitude", pos_data.latitude);
+    appendToDataset(pos, "longitude", pos_data.longitude);
+    appendToDataset(pos, "altitude", pos_data.altitude);
 
-    appendToDataset(att, "roll", roll);
-    appendToDataset(att, "pitch", pitch);
-    appendToDataset(att, "yaw", yaw);
+    appendToDataset(attitude, "roll", att.phi);
+    appendToDataset(attitude, "pitch", att.theta);
+    appendToDataset(attitude, "yaw", att.psi);
 
-    appendToDataset(vel, "u", u);
-    appendToDataset(vel, "v", v);
-    appendToDataset(vel, "w", w);
+    appendToDataset(velocity, "u", vel.u);
+    appendToDataset(velocity, "v", vel.v);
+    appendToDataset(velocity, "w", vel.w);
 }
