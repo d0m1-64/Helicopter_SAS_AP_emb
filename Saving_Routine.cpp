@@ -15,6 +15,7 @@ std::string config_file_name = "Sim_Config.json";
 
 
 
+// Generate unique filename based on date and time for current Simulation
 std::string generate_filename() {
     time_t now = time(nullptr);
     tm* ltm = localtime(&now);
@@ -23,7 +24,9 @@ std::string generate_filename() {
     return std::string(buf);
 }
 
-// Init and return dataset group
+/*
+ * Initialization of the h5 Dataset at beginning of Simulation
+ */
 void init_dataset() {
 
     file_name = generate_filename();
@@ -50,7 +53,9 @@ void init_dataset() {
     }
 }
 
-// Load and save simulation and controller parameters
+/*
+ * Save the Simulation Configuration to the h5 Dataset
+ */
 void save_config() {
     std::ifstream config_file(config_file_name);
     if (!config_file.is_open()) {
@@ -76,7 +81,11 @@ void save_config() {
     ctrl_group.createAttribute("Abs_values_flag", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl["Abs_values_flag"]);
 }
 
-// Save AutoPilot and PilotControl inputs
+
+
+/*
+ * Save the used Inputs (AutoPilot and Pilot) to the h5 dataset
+ */
 void save_inputs(const std::vector<AutoPilot_Controls>& ap_vec, const std::vector<Pilot_Controls>& pc_vec) {
     H5File file(h5file_name, H5F_ACC_RDWR);
     const hsize_t N = ap_vec.size();
@@ -117,7 +126,9 @@ void save_inputs(const std::vector<AutoPilot_Controls>& ap_vec, const std::vecto
 }
 
 
-// Append a single value to a dataset
+
+
+// Helper: Append a single value to a dataset
 void appendToDataset(H5::Group& group, const std::string& name, double value) {
     H5::DataSet dataset;
     H5::DataSpace space;
@@ -147,7 +158,11 @@ void appendToDataset(H5::Group& group, const std::string& name, double value) {
     dataset.write(&value, PredType::NATIVE_DOUBLE, memspace, filespace);
 }
 
-// Save timestep to '/Responses'
+
+
+/*
+ * Save the Model Output of the current timestep to the h5 dataset
+ */
 void save_timestep(const WSG84Position& pos_data, const Attitudes& att, const Velocities_B& vel) {
     H5File file(h5file_name, H5F_ACC_RDWR);
     auto pos = init_dataset(file, "/Responses/WSG84Position");
