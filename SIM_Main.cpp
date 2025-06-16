@@ -1,7 +1,6 @@
 #include <iostream>
 #include <chrono>
 #include <fstream>
-#include <vector>
 
 #include <nlohmann/json.hpp>
 #include <grpcpp/grpcpp.h>
@@ -12,6 +11,7 @@
 #include "Plotting_Routine.h"
 #include "Saving_Routine.cpp"
 #include "Testing_Procedures.cpp"
+
 
 using json = nlohmann::json;
 
@@ -95,10 +95,6 @@ int main() {
 
     // 6. Terminate controller and gRPC connection
     // ToDo
-
-
-    // 7. Plot results
-    Plotting_Routine();
 
 
     return 0;
