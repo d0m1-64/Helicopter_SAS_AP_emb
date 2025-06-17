@@ -53,4 +53,21 @@ struct Pilot_Controls {
     double delta_ped;
 };
 
+struct Windspeed {
+    double Wind_x_B;
+    double Wind_y_B;
+    double Wind_z_B;
+};
+
+struct State_vector {
+    double u;
+    double w;
+    double q;
+    double theta;
+    double v;
+    double p;
+    double phi;
+    double r;
+};
+
 #endif //DATATYPES_H
