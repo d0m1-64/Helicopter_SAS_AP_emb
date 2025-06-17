@@ -8,4 +8,5 @@ add_executable(Helicopter_SAS_AP_emb SIM_Main.cpp
         Datatypes.h
         FlightModelClient.cpp
         FlightModelClient.h
+        Converters.cpp
 )
