@@ -63,14 +63,12 @@ int main() {
 
 
         // 5.1. Step the controller
-        // ToDo: fix references
         controller.step(&Pilot_Cntrls[step].delta_long, &Pilot_Cntrls[step].delta_lat, &Pilot_Cntrls[step].delta_coll, &Pilot_Cntrls[step].delta_ped,
                         &AP_Cntrls[step].GS_x, &AP_Cntrls[step].GS_y, &AP_Cntrls[step].VS, &AP_Cntrls[step].Heading,
                         &wind.Wind_x_B, &wind.Wind_y_B, &wind.Wind_z_B,
                         &AutoPilot_Enabled, &SAS_Enabled,
                         &x.u, &x.w, &x.q, &x.theta,
                         &x.v, &x.p, &x.phi, &x.r,
-                        // References to Output variables of the controller
                         &curr_cntrl_eff.delta_long, &curr_cntrl_eff.delta_lat, &curr_cntrl_eff.delta_coll, &curr_cntrl_eff.delta_ped);
 
 
