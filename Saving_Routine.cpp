@@ -39,7 +39,6 @@ void init_dataset() {
         "/Inputs/Auto_Pilot",
         "/Inputs/Pilot_Controls",
         "/Responses",
-        "/Responses/WSG84Position",
         "/Responses/Attitudes",
         "/Responses/Velocities_B",
         "/Responses/AngularRates",
@@ -174,16 +173,16 @@ void appendToDataset(H5::Group& group, const std::string& name, double value) {
 /*
  * Save the Model Output of the current timestep to the h5 dataset
  */
-void save_timestep(const WSG84Position& pos_data, const Attitudes& att, const Velocities_B& vel, const Pilot_Controls& control_eff) {
+void save_timestep(int step, const AngularRates& ang_rat, const Attitudes& att, const Velocities_B& vel, const Pilot_Controls& control_eff) {
     H5File file(h5file_name, H5F_ACC_RDWR);
-    auto pos = init_dataset(file, "/Responses/WSG84Position");
+    auto angular_rates = init_dataset(file, "/Responses/AngularRates");
     auto attitude = init_dataset(file, "/Responses/Attitudes");
     auto velocity = init_dataset(file, "/Responses/Velocities");
     auto control_efforts = init_dataset(file, "/Responses/Control_Efforts");
 
-    appendToDataset(pos, "latitude", pos_data.latitude);
-    appendToDataset(pos, "longitude", pos_data.longitude);
-    appendToDataset(pos, "altitude", pos_data.altitude);
+    appendToDataset(angular_rates, "p", ang_rat.p);
+    appendToDataset(angular_rates, "q", ang_rat.q);
+    appendToDataset(angular_rates, "r", ang_rat.r);
 
     appendToDataset(attitude, "roll", att.phi);
     appendToDataset(attitude, "pitch", att.theta);
