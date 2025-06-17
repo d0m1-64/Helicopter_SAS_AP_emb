@@ -89,6 +89,30 @@ void save_config() {
     ctrl_group.createAttribute("AutoPilot_Enabled", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl["AutoPilot_Enabled"]);
     ctrl_group.createAttribute("Abs_values_flag", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl["Abs_values_flag"]);
 
+
+    // Initialize the Response Datasets to the correct size
+    // Prepare zeros and dataspace
+    std::vector<double> zeros(NofSteps, 0.0);
+    hsize_t dims[1] = { static_cast<hsize_t>(NofSteps) };
+    DataSpace space(1, dims);
+
+    // Define dataset structure
+    std::vector<std::pair<std::string, std::vector<std::string>>> response_groups = {
+        {"/Responses/AngularRates",    {"p", "q", "r"}},
+        {"/Responses/Attitudes",       {"roll", "pitch", "yaw"}},
+        {"/Responses/Velocities",      {"u", "v", "w"}},
+        {"/Responses/Control_Efforts", {"delta_long", "delta_lat", "delta_coll", "delta_ped"}}
+    };
+
+    // Loop over each group and initialize datasets
+    for (const auto& [group_path, dataset_names] : response_groups) {
+        Group group = init_dataset(file, group_path);
+        for (const auto& name : dataset_names) {
+            group.createDataSet(name, PredType::NATIVE_DOUBLE, space)
+                 .write(zeros.data(), PredType::NATIVE_DOUBLE);
+        }
+    }
+
 }
 
 
@@ -138,34 +162,18 @@ void save_inputs(const std::vector<AutoPilot_Controls>& ap_vec, const std::vecto
 
 
 
-// Helper: Append a single value to a dataset
-void appendToDataset(H5::Group& group, const std::string& name, double value) {
-    H5::DataSet dataset;
-    H5::DataSpace space;
-    hsize_t size[1];
-
-    try {
-        dataset = group.openDataSet(name);
-        space = dataset.getSpace();
-        space.getSimpleExtentDims(size);
-        size[0]++;
-        dataset.extend(size);
-    } catch (...) {
-        hsize_t init_size[1] = {0}, max_size[1] = {H5S_UNLIMITED};
-        hsize_t chunk[1] = {100};
-        DataSpace newspace(1, init_size, max_size);
-        DSetCreatPropList plist;
-        plist.setChunk(1, chunk);
-        dataset = group.createDataSet(name, PredType::NATIVE_DOUBLE, newspace, plist);
-        size[0] = 1;
-        dataset.extend(size);
-    }
+// Helper: Writes to the dataset at a specified index
+void single_writeToDataset(H5::Group& group, const std::string& name, double value, hsize_t index) {
+    H5::DataSet dataset = group.openDataSet(name);
 
     H5::DataSpace filespace = dataset.getSpace();
-    hsize_t offset[1] = { size[0] - 1 }, count[1] = { 1 };
+    hsize_t offset[1] = { index };
+    hsize_t count[1] = { 1 };
+
     filespace.selectHyperslab(H5S_SELECT_SET, count, offset);
-    DataSpace memspace(1, count);
-    dataset.write(&value, PredType::NATIVE_DOUBLE, memspace, filespace);
+    H5::DataSpace memspace(1, count);
+
+    dataset.write(&value, H5::PredType::NATIVE_DOUBLE, memspace, filespace);
 }
 
 
@@ -180,20 +188,20 @@ void save_timestep(int step, const AngularRates& ang_rat, const Attitudes& att, 
     auto velocity = init_dataset(file, "/Responses/Velocities");
     auto control_efforts = init_dataset(file, "/Responses/Control_Efforts");
 
-    appendToDataset(angular_rates, "p", ang_rat.p);
-    appendToDataset(angular_rates, "q", ang_rat.q);
-    appendToDataset(angular_rates, "r", ang_rat.r);
+    single_writeToDataset(angular_rates, "p", ang_rat.p, step);
+    single_writeToDataset(angular_rates, "q", ang_rat.q, step);
+    single_writeToDataset(angular_rates, "r", ang_rat.r, step);
 
-    appendToDataset(attitude, "roll", att.phi);
-    appendToDataset(attitude, "pitch", att.theta);
-    appendToDataset(attitude, "yaw", att.psi);
+    single_writeToDataset(attitude, "roll", att.phi, step);
+    single_writeToDataset(attitude, "pitch", att.theta, step);
+    single_writeToDataset(attitude, "yaw", att.psi, step);
 
-    appendToDataset(velocity, "u", vel.u);
-    appendToDataset(velocity, "v", vel.v);
-    appendToDataset(velocity, "w", vel.w);
+    single_writeToDataset(velocity, "u", vel.u, step);
+    single_writeToDataset(velocity, "v", vel.v, step);
+    single_writeToDataset(velocity, "w", vel.w, step);
 
-    appendToDataset(control_efforts, "delta_long", control_eff.delta_long);
-    appendToDataset(control_efforts, "delta_lat", control_eff.delta_lat);
-    appendToDataset(control_efforts, "delta_coll", control_eff.delta_coll);
-    appendToDataset(control_efforts, "delta_ped", control_eff.delta_ped);
+    single_writeToDataset(control_efforts, "delta_long", control_eff.delta_long, step);
+    single_writeToDataset(control_efforts, "delta_lat", control_eff.delta_lat, step);
+    single_writeToDataset(control_efforts, "delta_coll", control_eff.delta_coll, step);
+    single_writeToDataset(control_efforts, "delta_ped", control_eff.delta_ped, step);
 }
