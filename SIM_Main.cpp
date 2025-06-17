@@ -8,9 +8,10 @@
 
 #include "Full_Controller/Full_Controller.h"
 #include "FlightModelClient.h"
-#include "Plotting_Routine.h"
 #include "Saving_Routine.cpp"
 #include "Testing_Procedures.cpp"
+#include "Converters.cpp"
+#include "Datatypes.h"
 
 
 using json = nlohmann::json;
@@ -31,11 +32,11 @@ int main() {
     double sim_time = sim_config["simulation"]["simTime"];
     double dt = sim_config["simulation"]["dt"];
     int NofSteps = sim_time / dt;
+    bool AutoPilot_Enabled = sim_config["controller_parameters"]["AutoPilot_Enabled"];
+    bool SAS_Enabled = sim_config["controller_parameters"]["SAS_Enabled"];
 
     init_dataset();
     save_config();
-
-
 
 
     // 1. gRPC client
@@ -52,8 +53,9 @@ int main() {
 
 
     // 4. Initial States
-    // ToDo: Define initial states and save the first (initial) step - give references
-    save_timestep();
+    Windspeed wind = {0.0, 0.0, 0.0}; // could be f(t) in future
+    State_vector x = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    Pilot_Controls curr_cntrl_eff = { 0.0, 0.0, 0.0, 0.0};
 
 
     // 5. Run the Simulation Loop
@@ -62,17 +64,18 @@ int main() {
 
         // 5.1. Step the controller
         // ToDo: fix references
-        controller.step(pilot_controls.delta_long, &delta_lat, &delta_coll, &delta_ped,
-                        &ref_x, &ref_y, &ref_vs, &ref_psi,
-                        &wind_x, &wind_y, &wind_z,
-                        &ap_enabled, &sas_enabled,
-                        &u, &w, &q, &theta,
-                        &v, &p, &phi, &r,
-                        &output_delt, &output_de_g, &output_de_c, &output_de_e);
+        controller.step(&Pilot_Cntrls[step].delta_long, &Pilot_Cntrls[step].delta_lat, &Pilot_Cntrls[step].delta_coll, &Pilot_Cntrls[step].delta_ped,
+                        &AP_Cntrls[step].GS_x, &AP_Cntrls[step].GS_y, &AP_Cntrls[step].VS, &AP_Cntrls[step].Heading,
+                        &wind.Wind_x_B, &wind.Wind_y_B, &wind.Wind_z_B,
+                        &AutoPilot_Enabled, &SAS_Enabled,
+                        &x.u, &x.w, &x.q, &x.theta,
+                        &x.v, &x.p, &x.phi, &x.r,
+                        // References to Output variables of the controller
+                        &curr_cntrl_eff.delta_long, &curr_cntrl_eff.delta_lat, &curr_cntrl_eff.delta_coll, &curr_cntrl_eff.delta_ped);
 
 
         // 5.2. Create gRPC message from controller outputs
-        auto control_msg = CreateControlMessage(output_de_c, output_de_g, output_delt, output_de_e);
+        auto control_msg = CreateControlMessage(curr_cntrl_eff.delta_long, curr_cntrl_eff.delta_lat, curr_cntrl_eff.delta_coll, curr_cntrl_eff.delta_ped);
 
 
         // 5.3. Step the Helicopter Model
@@ -80,22 +83,17 @@ int main() {
 
 
         // 5.4. Update local Helicopter State
-        // ToDo
+        AngularRates angularRates; Attitudes attitudes; Velocities_B velocities_B;
+        convertOwnshipPositionExtended(result().ownshipPosition(), angularRates, attitudes, velocities_B, x);
 
 
         // 5.5. Save Outputs
-        // ToDo give references to local helicopter states
-        save_timestep();
+        save_timestep(step, angularRates, attitudes, velocities_B, curr_cntrl_eff);
 
 
         // 5.6. Log Simulation Progress
         printf("Step %d of %d complete\n", step, NofSteps);
     }
-
-
-    // 6. Terminate controller and gRPC connection
-    // ToDo
-
 
     return 0;
 }
