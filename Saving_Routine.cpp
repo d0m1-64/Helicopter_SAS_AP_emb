@@ -20,7 +20,7 @@ std::string generate_filename() {
     time_t now = time(nullptr);
     tm* ltm = localtime(&now);
     char buf[64];
-    strftime(buf, sizeof(buf), "/mnt/data/Dataset_%Y%m%d_%H%M.h5", ltm);
+    strftime(buf, sizeof(buf), "./Datasets/Dataset_%Y%m%d_%H%M.h5", ltm);
     return std::string(buf);
 }
 
@@ -42,7 +42,8 @@ void init_dataset() {
         "/Responses/WSG84Position",
         "/Responses/Attitudes",
         "/Responses/Velocities_B",
-        "/Responses/AngularRates"
+        "/Responses/AngularRates",
+        "/Responses/Control_Efforts"
     };
 
     for (const auto& path : paths) {
@@ -70,16 +71,25 @@ void save_config() {
     auto sim = config["simulation"];
     auto ctrl = config["controller_parameters"];
 
+    std::vector<double> t(sim["NofSteps"]);
+    for (int i = 0; i < sim["NofSteps"]; ++i) {
+        t[i] = i * sim["dt"];
+    }
+
     H5File file(h5file_name, H5F_ACC_RDWR);
 
     Group sim_group = init_dataset(file, "/Simulation_Parameters");
     sim_group.createAttribute("dt", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &sim["dt"]);
     sim_group.createAttribute("simTime", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &sim["simTime"]);
+    sim_group.createAttribute("NofSteps", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &sim["NofSteps"]);
+    sim_group.createDataSet("t", PredType::NATIVE_DOUBLE, space).write(t.data(), PredType::NATIVE_DOUBLE);
+
 
     Group ctrl_group = init_dataset(file, "/Controller_Parameters");
     ctrl_group.createAttribute("SAS_Enabled", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl["SAS_Enabled"]);
     ctrl_group.createAttribute("AutoPilot_Enabled", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl["AutoPilot_Enabled"]);
     ctrl_group.createAttribute("Abs_values_flag", PredType::NATIVE_DOUBLE, DataSpace(H5S_SCALAR)).write(PredType::NATIVE_DOUBLE, &ctrl["Abs_values_flag"]);
+
 }
 
 
@@ -164,11 +174,12 @@ void appendToDataset(H5::Group& group, const std::string& name, double value) {
 /*
  * Save the Model Output of the current timestep to the h5 dataset
  */
-void save_timestep(const WSG84Position& pos_data, const Attitudes& att, const Velocities_B& vel) {
+void save_timestep(const WSG84Position& pos_data, const Attitudes& att, const Velocities_B& vel, const Pilot_Controls& control_eff) {
     H5File file(h5file_name, H5F_ACC_RDWR);
     auto pos = init_dataset(file, "/Responses/WSG84Position");
     auto attitude = init_dataset(file, "/Responses/Attitudes");
     auto velocity = init_dataset(file, "/Responses/Velocities");
+    auto control_efforts = init_dataset(file, "/Responses/Control_Efforts");
 
     appendToDataset(pos, "latitude", pos_data.latitude);
     appendToDataset(pos, "longitude", pos_data.longitude);
@@ -181,4 +192,9 @@ void save_timestep(const WSG84Position& pos_data, const Attitudes& att, const Ve
     appendToDataset(velocity, "u", vel.u);
     appendToDataset(velocity, "v", vel.v);
     appendToDataset(velocity, "w", vel.w);
+
+    appendToDataset(control_efforts, "delta_long", control_eff.delta_long);
+    appendToDataset(control_efforts, "delta_lat", control_eff.delta_lat);
+    appendToDataset(control_efforts, "delta_coll", control_eff.delta_coll);
+    appendToDataset(control_efforts, "delta_ped", control_eff.delta_ped);
 }
